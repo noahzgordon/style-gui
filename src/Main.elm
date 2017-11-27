@@ -14,11 +14,11 @@ import Widgets exposing (Widget)
 
 
 type alias Model =
-    { gui : Maybe Widgets.Widget }
+    { gui : Widgets.Widget }
 
 
 init =
-    ( { gui = Nothing }, Cmd.none )
+    ( { gui = Widgets.Row [] }, Cmd.none )
 
 
 
@@ -49,8 +49,8 @@ type Styles
 
 view : Model -> Html Message
 view model =
-    viewport styles
-        <| column None
+    viewport styles <|
+        column None
             [ height (fill 1) ]
             [ header, mainContent model ]
 
@@ -68,24 +68,15 @@ mainContent model =
 
 
 previewPane model =
-    let
-        guiPreview =
-            case model.gui of
-                Just gui ->
-                    renderWidget gui
-
-                Nothing ->
-                    empty
-    in
-        column None
-            [ height (fill 1), width (fill 2) ]
-            [ Element.text "Preview", guiPreview ]
+    column None
+        [ height (fill 1), width (fill 2) ]
+        [ Element.text "Preview", renderWidget model.gui ]
 
 
 renderWidget widget =
     case widget of
         Widgets.Row subWidgets ->
-            row WidgetDefault [] (List.map renderWidget subWidgets)
+            row WidgetDefault [ height (fill 1), width (fill 1) ] (List.map renderWidget subWidgets)
 
         Widgets.Column subWidgets ->
             column WidgetDefault [] (List.map renderWidget subWidgets)
@@ -100,8 +91,8 @@ cabinet model =
 
 
 cabinetElement name widget =
-    row CabinetElement [ height (px 100), width (fill 1), center, verticalCenter, spacing 20 ]
-        <| [ Element.text name ]
+    row (CabinetElement) [ height (px 100), width (fill 1), center, verticalCenter, spacing 20 ] <|
+        [ Element.text name ]
 
 
 styles =
@@ -111,7 +102,7 @@ styles =
         , style CabinetElement
             [ background red, Style.Color.text white ]
         , style WidgetDefault
-            [ Border.dotted ]
+            [ Style.Color.border black, Border.dotted, Border.all 2 ]
         ]
 
 
