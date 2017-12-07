@@ -7,18 +7,30 @@ import Style.Color exposing (..)
 import Style.Border as Border
 import Element exposing (..)
 import Element.Attributes exposing (..)
+import Element.Events exposing (..)
+import Dialog
 import Widgets exposing (Widget)
 
 
 -- model
 
 
+type Menu
+    = Props
+
+
 type alias Model =
-    { gui : Widgets.Widget }
+    { gui : Widgets.Widget
+    , menu : Maybe Menu
+    }
 
 
 init =
-    ( { gui = Widgets.Row [] }, Cmd.none )
+    ( { gui = Widgets.Row []
+      , menu = Nothing
+      }
+    , Cmd.none
+    )
 
 
 
@@ -26,12 +38,18 @@ init =
 
 
 type Message
-    = Noop
+    = CloseMenu
+    | OpenMenu Menu
 
 
 update : Message -> Model -> ( Model, Cmd Message )
 update message model =
-    ( model, Cmd.none )
+    case message of
+        OpenMenu menu ->
+            ( { model | menu = Just menu }, Cmd.none )
+
+        CloseMenu ->
+            ( { model | menu = Nothing }, Cmd.none )
 
 
 
@@ -43,7 +61,6 @@ type Styles
     | Header
     | Title
     | MainContent
-    | CabinetElement
     | WidgetDefault
 
 
@@ -51,8 +68,8 @@ view : Model -> Html Message
 view model =
     viewport styles <|
         column None
-            [ height (fill 1) ]
-            [ header, mainContent model ]
+            [ height (fillPortion 1) ]
+            [ header, mainContent model, menuModal model ]
 
 
 header =
@@ -63,44 +80,49 @@ header =
 
 mainContent model =
     row MainContent
-        [ height (fill 1) ]
-        [ previewPane model, cabinet model ]
+        [ height (fillPortion 1) ]
+        [ previewPane model ]
+
+
+menuModal model =
+    Dialog.view (Maybe.map menuConfig model.menu)
+        |> Element.html
+
+
+menuConfig : Menu -> Dialog.Config Message
+menuConfig menu =
+    let
+        baseConfig html =
+            { closeMessage = Just CloseMenu
+            , containerClass = Nothing
+            , header = Nothing
+            , body = Just html
+            , footer = Nothing
+            }
+    in
+        Html.text "foo"
+            |> baseConfig
 
 
 previewPane model =
     column None
-        [ height (fill 1), width (fill 2) ]
+        [ height (fillPortion 1), width (fillPortion 2) ]
         [ Element.text "Preview", renderWidget model.gui ]
 
 
 renderWidget widget =
     case widget of
         Widgets.Row subWidgets ->
-            row WidgetDefault [ height (fill 1), width (fill 1) ] (List.map renderWidget subWidgets)
+            row WidgetDefault [ height (fillPortion 1), width (fillPortion 1), onClick (OpenMenu Props) ] (List.map renderWidget subWidgets)
 
         Widgets.Column subWidgets ->
             column WidgetDefault [] (List.map renderWidget subWidgets)
-
-
-cabinet model =
-    column None
-        [ height (fill 1), width (fill 1) ]
-        [ cabinetElement "Row" Widgets.Row
-        , cabinetElement "Column" Widgets.Column
-        ]
-
-
-cabinetElement name widget =
-    row (CabinetElement) [ height (px 100), width (fill 1), center, verticalCenter, spacing 20 ] <|
-        [ Element.text name ]
 
 
 styles =
     styleSheet
         [ style Header
             [ background black, Style.Color.text white ]
-        , style CabinetElement
-            [ background red, Style.Color.text white ]
         , style WidgetDefault
             [ Style.Color.border black, Border.dotted, Border.all 2 ]
         ]
