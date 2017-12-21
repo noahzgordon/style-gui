@@ -3,12 +3,12 @@ module Main exposing (main)
 import Html exposing (Html)
 import Color exposing (..)
 import Style exposing (..)
-import Style.Color exposing (..)
+import Style.Color exposing (background)
 import Style.Border as Border
+import Style.Shadow as Shadow
 import Element exposing (..)
 import Element.Attributes exposing (..)
 import Element.Events exposing (..)
-import Dialog
 import Widgets exposing (Widget)
 
 
@@ -16,7 +16,7 @@ import Widgets exposing (Widget)
 
 
 type Menu
-    = Props
+    = Props Widget
 
 
 type alias Model =
@@ -56,52 +56,52 @@ update message model =
 -- view
 
 
-type Styles
+type Style
     = None
     | Header
     | Title
     | MainContent
     | WidgetDefault
+    | MenuStyle
+    | Button
 
 
 view : Model -> Html Message
 view model =
     viewport styles <|
         column None
-            [ height (fillPortion 1) ]
-            [ header, mainContent model, menuModal model ]
+            [ height fill ]
+            [ header, mainContent model, Element.whenJust model.menu menuModal ]
 
 
+header : Element Style variation Message
 header =
     row Header
         [ width (percent 100), height (px 100), center ]
         [ el Title [ center, verticalCenter ] (Element.text "Style GUI") ]
 
 
+mainContent : Model -> Element Style variation Message
 mainContent model =
     row MainContent
         [ height (fillPortion 1) ]
         [ previewPane model ]
 
 
-menuModal model =
-    Dialog.view (Maybe.map menuConfig model.menu)
-        |> Element.html
-
-
-menuConfig : Menu -> Dialog.Config Message
-menuConfig menu =
+menuModal : Menu -> Element Style variation Message
+menuModal menu =
     let
-        baseConfig html =
-            { closeMessage = Just CloseMenu
-            , containerClass = Nothing
-            , header = Nothing
-            , body = Just html
-            , footer = Nothing
-            }
+        content =
+            case menu of
+                Props widget ->
+                    row None [] []
     in
-        Html.text "foo"
-            |> baseConfig
+        Element.modal MenuStyle [ height fill, width fill ] <|
+            column None [ height fill ] <|
+                [ row None [ height (px 100), alignRight, padding 30 ] <|
+                    [ el Button [ verticalCenter, padding 10, onClick CloseMenu ] (text "close") ]
+                , content
+                ]
 
 
 previewPane model =
@@ -113,7 +113,7 @@ previewPane model =
 renderWidget widget =
     case widget of
         Widgets.Row subWidgets ->
-            row WidgetDefault [ height (fillPortion 1), width (fillPortion 1), onClick (OpenMenu Props) ] (List.map renderWidget subWidgets)
+            row WidgetDefault [ height (fillPortion 1), width (fillPortion 1), onClick (OpenMenu (Props widget)) ] (List.map renderWidget subWidgets)
 
         Widgets.Column subWidgets ->
             column WidgetDefault [] (List.map renderWidget subWidgets)
@@ -124,7 +124,24 @@ styles =
         [ style Header
             [ background black, Style.Color.text white ]
         , style WidgetDefault
-            [ Style.Color.border black, Border.dotted, Border.all 2 ]
+            [ Style.Color.border black
+            , Border.dotted
+            , Border.all 2
+            , Style.hover
+                [ cursor "pointer"
+                , Style.Color.background gray
+                , Shadow.simple
+                ]
+            ]
+        , style MenuStyle
+            [ background black
+            , opacity 0.75
+            , Style.Color.text white
+            ]
+        , style Button
+            [ background blue
+            , cursor "pointer"
+            ]
         ]
 
 
