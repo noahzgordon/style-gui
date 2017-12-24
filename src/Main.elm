@@ -7,26 +7,29 @@ import Style.Color exposing (background)
 import Style.Border as Border
 import Style.Shadow as Shadow
 import Element exposing (..)
+import Element.Input exposing (radio, choice, labelAbove)
 import Element.Attributes exposing (..)
 import Element.Events exposing (..)
-import Widgets exposing (Widget)
+import Unique
+import Debug
+import Widgets exposing (Widget(..))
 
 
 -- model
 
 
 type Menu
-    = Props Widget
+    = Props Widgets.WidgetProperties
 
 
 type alias Model =
-    { gui : Widgets.Widget
+    { gui : Widgets.WidgetGen
     , menu : Maybe Menu
     }
 
 
 init =
-    ( { gui = Widgets.Row []
+    ( { gui = Widgets.new Widgets.Row
       , menu = Nothing
       }
     , Cmd.none
@@ -40,6 +43,7 @@ init =
 type Message
     = CloseMenu
     | OpenMenu Menu
+    | SetWidgetWidthStyle Widgets.Id Widgets.LengthStyle
 
 
 update : Message -> Model -> ( Model, Cmd Message )
@@ -50,6 +54,17 @@ update message model =
 
         CloseMenu ->
             ( { model | menu = Nothing }, Cmd.none )
+
+        SetWidgetWidthStyle id widthStyle ->
+            let
+                updateFn w =
+                    { w | width = Widgets.updateStyle widthStyle w.width }
+            in
+                ( { model
+                    | gui = Widgets.update id model.gui updateFn
+                  }
+                , Cmd.none
+                )
 
 
 
@@ -94,7 +109,21 @@ menuModal menu =
         content =
             case menu of
                 Props widget ->
-                    row None [] []
+                    row None [] <|
+                        [ radio None [] <|
+                            { onChange = SetWidgetWidthStyle widget.id
+                            , selected = Just widget.width.style
+                            , label = labelAbove (text "Width")
+                            , options = []
+                            , choices =
+                                [ choice Widgets.Pixels (text "Pixels")
+                                , choice Widgets.Fill (text "Fill")
+                                , choice Widgets.FillPortion (text "Fill Portion")
+                                , choice Widgets.Percent (text "Percent")
+                                , choice Widgets.Content (text "Stretch to Content")
+                                ]
+                            }
+                        ]
     in
         Element.modal MenuStyle [ height fill, width fill ] <|
             column None [ height fill ] <|
@@ -107,16 +136,21 @@ menuModal menu =
 previewPane model =
     column None
         [ height (fillPortion 1), width (fillPortion 2) ]
-        [ Element.text "Preview", renderWidget model.gui ]
+        [ Element.text "Preview", renderWidget (Unique.run model.gui) ]
 
 
-renderWidget widget =
-    case widget of
-        Widgets.Row subWidgets ->
-            row WidgetDefault [ height (fillPortion 1), width (fillPortion 1), onClick (OpenMenu (Props widget)) ] (List.map renderWidget subWidgets)
+defaultWidgetProps =
+    { width = Widgets.Fill }
 
-        Widgets.Column subWidgets ->
-            column WidgetDefault [] (List.map renderWidget subWidgets)
+
+renderWidget : Widgets.Widget -> Element Style v Message
+renderWidget (Widget w) =
+    case w.element of
+        Widgets.Row ->
+            row WidgetDefault [ height (fillPortion 1), width (fillPortion 1), onClick (OpenMenu (Props w)) ] (List.map renderWidget w.children)
+
+        Widgets.Column ->
+            column WidgetDefault [] (List.map renderWidget w.children)
 
 
 styles =
