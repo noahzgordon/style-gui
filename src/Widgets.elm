@@ -1,5 +1,7 @@
 module Widgets exposing (..)
 
+import Element exposing (Attribute)
+import Element.Attributes as Attributes
 import Unique exposing (Unique)
 
 
@@ -17,9 +19,9 @@ type LengthStyle
 
 type alias Length =
     { style : LengthStyle
-    , pixels : Maybe Int
-    , portion : Maybe Int
-    , percent : Maybe Float
+    , pixels : Float
+    , portion : Int
+    , percent : Float
     }
 
 
@@ -36,6 +38,7 @@ type alias WidgetProperties =
     { id : Unique.Id
     , element : WidgetElement
     , width : Length
+    , height : Length
     , children : List Widget
     }
 
@@ -76,6 +79,7 @@ new el =
                     { id = id
                     , element = el
                     , width = newLength
+                    , height = newLength
                     , children = []
                     }
             )
@@ -84,7 +88,26 @@ new el =
 newLength : Length
 newLength =
     { style = Fill
-    , pixels = Nothing
-    , portion = Nothing
-    , percent = Nothing
+    , pixels = 300
+    , portion = 1
+    , percent = 100
     }
+
+
+lengthToAttr : Length -> Attributes.Length
+lengthToAttr length =
+    case length.style of
+        Fill ->
+            Attributes.fill
+
+        FillPortion ->
+            Attributes.fillPortion length.portion
+
+        Pixels ->
+            Attributes.px length.pixels
+
+        Percent ->
+            Attributes.percent length.percent
+
+        Content ->
+            Attributes.fill

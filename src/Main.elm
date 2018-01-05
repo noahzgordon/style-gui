@@ -7,7 +7,7 @@ import Style.Color exposing (background)
 import Style.Border as Border
 import Style.Shadow as Shadow
 import Element exposing (..)
-import Element.Input exposing (radio, choice, labelAbove)
+import Element.Input as Input exposing (radio, choice, labelAbove)
 import Element.Attributes exposing (..)
 import Element.Events exposing (..)
 import Unique
@@ -44,6 +44,8 @@ type Message
     = CloseMenu
     | OpenMenu Menu
     | SetWidgetWidthStyle Widgets.Id Widgets.LengthStyle
+    | SetWidgetHeightStyle Widgets.Id Widgets.LengthStyle
+    | SetWidgetWidthPixels Widgets.Id String
 
 
 update : Message -> Model -> ( Model, Cmd Message )
@@ -59,6 +61,39 @@ update message model =
             let
                 updateFn w =
                     { w | width = Widgets.updateStyle widthStyle w.width }
+            in
+                ( { model
+                    | gui = Widgets.update id model.gui updateFn
+                  }
+                , Cmd.none
+                )
+
+        SetWidgetHeightStyle id lengthStyle ->
+            let
+                updateFn w =
+                    { w | height = Widgets.updateStyle lengthStyle w.height }
+            in
+                ( { model
+                    | gui = Widgets.update id model.gui updateFn
+                  }
+                , Cmd.none
+                )
+
+        SetWidgetWidthPixels id newPixelString ->
+            let
+                updateFn w =
+                    let
+                        oldWidth =
+                            w.width
+
+                        newWidth =
+                            { oldWidth
+                                | pixels =
+                                    String.toFloat newPixelString
+                                        |> Result.withDefault oldWidth.pixels
+                            }
+                    in
+                        { w | width = newWidth }
             in
                 ( { model
                     | gui = Widgets.update id model.gui updateFn
@@ -123,6 +158,28 @@ menuModal menu =
                                 , choice Widgets.Content (text "Stretch to Content")
                                 ]
                             }
+                        , when ((Debug.log "f" widget.width.style) == Widgets.Pixels) <|
+                            el None [] <|
+                                Input.text None
+                                    []
+                                    { onChange = SetWidgetWidthPixels widget.id
+                                    , value = toString widget.width.pixels
+                                    , label = labelAbove (text "Px")
+                                    , options = []
+                                    }
+                        , radio None [] <|
+                            { onChange = SetWidgetHeightStyle widget.id
+                            , selected = Just widget.height.style
+                            , label = labelAbove (text "Height")
+                            , options = []
+                            , choices =
+                                [ choice Widgets.Pixels (text "Pixels")
+                                , choice Widgets.Fill (text "Fill")
+                                , choice Widgets.FillPortion (text "Fill Portion")
+                                , choice Widgets.Percent (text "Percent")
+                                , choice Widgets.Content (text "Stretch to Content")
+                                ]
+                            }
                         ]
     in
         Element.modal MenuStyle [ height fill, width fill ] <|
@@ -147,7 +204,12 @@ renderWidget : Widgets.Widget -> Element Style v Message
 renderWidget (Widget w) =
     case w.element of
         Widgets.Row ->
-            row WidgetDefault [ height (fillPortion 1), width (fillPortion 1), onClick (OpenMenu (Props w)) ] (List.map renderWidget w.children)
+            row WidgetDefault
+                [ Widgets.lengthToAttr w.height |> height
+                , Widgets.lengthToAttr w.width |> width
+                , onClick (OpenMenu (Props w))
+                ]
+                (List.map renderWidget w.children)
 
         Widgets.Column ->
             column WidgetDefault [] (List.map renderWidget w.children)
