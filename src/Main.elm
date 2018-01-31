@@ -10,9 +10,9 @@ import Element exposing (..)
 import Element.Input as Input exposing (radio, choice, labelAbove)
 import Element.Attributes exposing (..)
 import Element.Events exposing (..)
-import Unique
+import Dict exposing (Dict)
 import Debug
-import Widgets exposing (Widget(..))
+import Widgets exposing (Widget(..), Position(..))
 
 
 -- model
@@ -23,13 +23,15 @@ type Menu
 
 
 type alias Model =
-    { gui : Widgets.WidgetGen
+    { widgetMap : Dict String Widget
+    , rootWidget : Widget
     , menu : Maybe Menu
     }
 
 
 init =
-    ( { gui = Widgets.new Widgets.Row
+    ( { widgetMap = Dict.empty
+      , rootWidget = Widgets.new Widgets.Row Root
       , menu = Nothing
       }
     , Cmd.none
@@ -43,9 +45,9 @@ init =
 type Message
     = CloseMenu
     | OpenMenu Menu
-    | SetWidgetWidthStyle Widgets.Id Widgets.LengthStyle
-    | SetWidgetHeightStyle Widgets.Id Widgets.LengthStyle
-    | SetWidgetWidthPixels Widgets.Id String
+    | SetWidgetWidthStyle Position Widgets.LengthStyle
+    | SetWidgetHeightStyle Position Widgets.LengthStyle
+    | SetWidgetWidthPixels Position String
 
 
 update : Message -> Model -> ( Model, Cmd Message )
@@ -57,31 +59,33 @@ update message model =
         CloseMenu ->
             ( { model | menu = Nothing }, Cmd.none )
 
-        SetWidgetWidthStyle id widthStyle ->
-            let
-                updateFn w =
-                    { w | width = Widgets.updateStyle widthStyle w.width }
-            in
-                ( { model
-                    | gui = Widgets.update id model.gui updateFn
-                  }
-                , Cmd.none
-                )
+        SetWidgetWidthStyle position widthStyle ->
+            case position of
+                Root ->
+                    ( { model | rootWidget = Widgets.updateWidthStyle widthStyle model.rootWidget }
+                    , Cmd.none
+                    )
 
-        SetWidgetHeightStyle id lengthStyle ->
-            let
-                updateFn w =
-                    { w | height = Widgets.updateStyle lengthStyle w.height }
-            in
-                ( { model
-                    | gui = Widgets.update id model.gui updateFn
-                  }
-                , Cmd.none
-                )
+                InMap id ->
+                    ( { model | widgetMap = Dict.update id (Maybe.map (Widgets.updateWidthStyle widthStyle)) model.widgetMap }
+                    , Cmd.none
+                    )
 
-        SetWidgetWidthPixels id newPixelString ->
+        SetWidgetHeightStyle position heightStyle ->
+            case position of
+                Root ->
+                    ( { model | rootWidget = Widgets.updateHeightStyle heightStyle model.rootWidget }
+                    , Cmd.none
+                    )
+
+                InMap id ->
+                    ( { model | widgetMap = Dict.update id (Maybe.map (Widgets.updateHeightStyle heightStyle)) model.widgetMap }
+                    , Cmd.none
+                    )
+
+        SetWidgetWidthPixels position newPixelString ->
             let
-                updateFn w =
+                updateFn (Widget w) =
                     let
                         oldWidth =
                             w.width
@@ -93,13 +97,18 @@ update message model =
                                         |> Result.withDefault oldWidth.pixels
                             }
                     in
-                        { w | width = newWidth }
+                        Widget { w | width = newWidth }
             in
-                ( { model
-                    | gui = Widgets.update id model.gui updateFn
-                  }
-                , Cmd.none
-                )
+                case position of
+                    Root ->
+                        ( { model | rootWidget = updateFn model.rootWidget }
+                        , Cmd.none
+                        )
+
+                    InMap id ->
+                        ( { model | widgetMap = Dict.update id (Maybe.map updateFn) model.widgetMap }
+                        , Cmd.none
+                        )
 
 
 
@@ -118,8 +127,8 @@ type Style
 
 view : Model -> Html Message
 view model =
-    viewport styles <|
-        column None
+    viewport styles
+        <| column None
             [ height fill ]
             [ header, mainContent model, Element.whenJust model.menu menuModal ]
 
@@ -144,56 +153,56 @@ menuModal menu =
         content =
             case menu of
                 Props widget ->
-                    row None [] <|
-                        [ radio None [] <|
-                            { onChange = SetWidgetWidthStyle widget.id
-                            , selected = Just widget.width.style
-                            , label = labelAbove (text "Width")
-                            , options = []
-                            , choices =
-                                [ choice Widgets.Pixels (text "Pixels")
-                                , choice Widgets.Fill (text "Fill")
-                                , choice Widgets.FillPortion (text "Fill Portion")
-                                , choice Widgets.Percent (text "Percent")
-                                , choice Widgets.Content (text "Stretch to Content")
-                                ]
-                            }
-                        , when ((Debug.log "f" widget.width.style) == Widgets.Pixels) <|
-                            el None [] <|
-                                Input.text None
+                    row None []
+                        <| [ radio None []
+                                <| { onChange = SetWidgetWidthStyle widget.position
+                                   , selected = Just widget.width.style
+                                   , label = labelAbove (text "Width")
+                                   , options = []
+                                   , choices =
+                                        [ choice Widgets.Pixels (text "Pixels")
+                                        , choice Widgets.Fill (text "Fill")
+                                        , choice Widgets.FillPortion (text "Fill Portion")
+                                        , choice Widgets.Percent (text "Percent")
+                                        , choice Widgets.Content (text "Stretch to Content")
+                                        ]
+                                   }
+                           , when (widget.width.style == Widgets.Pixels)
+                                <| el None []
+                                <| Input.text None
                                     []
-                                    { onChange = SetWidgetWidthPixels widget.id
+                                    { onChange = SetWidgetWidthPixels widget.position
                                     , value = toString widget.width.pixels
                                     , label = labelAbove (text "Px")
                                     , options = []
                                     }
-                        , radio None [] <|
-                            { onChange = SetWidgetHeightStyle widget.id
-                            , selected = Just widget.height.style
-                            , label = labelAbove (text "Height")
-                            , options = []
-                            , choices =
-                                [ choice Widgets.Pixels (text "Pixels")
-                                , choice Widgets.Fill (text "Fill")
-                                , choice Widgets.FillPortion (text "Fill Portion")
-                                , choice Widgets.Percent (text "Percent")
-                                , choice Widgets.Content (text "Stretch to Content")
-                                ]
-                            }
-                        ]
+                           , radio None []
+                                <| { onChange = SetWidgetHeightStyle widget.position
+                                   , selected = Just widget.height.style
+                                   , label = labelAbove (text "Height")
+                                   , options = []
+                                   , choices =
+                                        [ choice Widgets.Pixels (text "Pixels")
+                                        , choice Widgets.Fill (text "Fill")
+                                        , choice Widgets.FillPortion (text "Fill Portion")
+                                        , choice Widgets.Percent (text "Percent")
+                                        , choice Widgets.Content (text "Stretch to Content")
+                                        ]
+                                   }
+                           ]
     in
-        Element.modal MenuStyle [ height fill, width fill ] <|
-            column None [ height fill ] <|
-                [ row None [ height (px 100), alignRight, padding 30 ] <|
-                    [ el Button [ verticalCenter, padding 10, onClick CloseMenu ] (text "close") ]
-                , content
-                ]
+        Element.modal MenuStyle [ height fill, width fill ]
+            <| column None [ height fill ]
+            <| [ row None [ height (px 100), alignRight, padding 30 ]
+                    <| [ el Button [ verticalCenter, padding 10, onClick CloseMenu ] (text "close") ]
+               , content
+               ]
 
 
 previewPane model =
     column None
         [ height (fillPortion 1), width (fillPortion 2) ]
-        [ Element.text "Preview", renderWidget (Unique.run model.gui) ]
+        [ Element.text "Preview", renderWidget model.rootWidget ]
 
 
 defaultWidgetProps =
